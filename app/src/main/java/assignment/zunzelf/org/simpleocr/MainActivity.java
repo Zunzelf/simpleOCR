@@ -11,6 +11,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
+
 import assignment.zunzelf.org.simpleocr.image.Processor;
 
 import java.io.IOException;
@@ -28,7 +30,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         proc = new Processor();
         i1 = findViewById(R.id.imageView);
-        i2 = findViewById(R.id.imageView2);
         FloatingActionButton fab = findViewById(R.id.floatingActionButton);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -51,13 +52,15 @@ public class MainActivity extends AppCompatActivity {
             bitmap = null;
             try {
                 bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageURI);
-//                bitmap = proc.getResizedBitmap(bitmap, 128, 128);
-                i1.setImageBitmap(bitmap);
+//                int percent = 60;
+//                bitmap = proc.getResizedBitmap(bitmap, Math.round((percent/100)*bitmap.getWidth()), Math.round((percent/100)*bitmap.getHeight()));
+//                i1.setImageBitmap(bitmap);
                 mBm = proc.createBlackAndWhite(bitmap);
-                i2.setImageBitmap(mBm);
-                proc.seekObjects(mBm, bitmap);
-
-                System.out.println("done!");
+                String res = proc.seekObjects(mBm);
+                i1.setImageBitmap(mBm);
+                TextView txt = (TextView) findViewById(R.id.txt1);
+                txt.setText(res);
+                Log.d("main","done!");
             } catch (IOException e) {
                 e.printStackTrace();
             }

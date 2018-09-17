@@ -4,14 +4,26 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.util.Log;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class Processor {
-
+    // manual stored chaincode model arial
+    // TODO : 1. Memory optimization for detecting multiple objects
+    // TODO : 2. Using more efective method for classification. (possibly using vector?)
+    String[] models = new String[]{
+            "000000777676666666666565554444433322322222222122111",
+            "0006666666666666666666644222222222222223454522011112",
+            "000000707676665655555555700000007644444444444442211111111112122334345456544212101",
+            "000000707666665577766666554544444333220067770101122233344201012222343455564422111",
+            "000666666666666670064456666442222344444444221121121112112",
+            "0000000000065444444456667000007776766566554544444333230006777010112222233434545442221222212",
+            "00000007766442343455556670100007076766666565454444433323222222222212111",
+            "000000000000066565565656566566666442222212221212112134444444422",
+            "00000007776665567767665655544444433322222211232321211",
+            "0000007776766666666665655544444433220777001111223454444343232222211201"
+    };
     static final int white = 0xFFFFFFFF;
     static final int black = 0xFF000000;
+    int obj = 0;
     static final String TAG = "imProc";
     public static Bitmap createBlackAndWhite(Bitmap src) {
         int width = src.getWidth();
@@ -62,21 +74,23 @@ public class Processor {
         // "RECREATE" THE NEW BITMAP
         Bitmap resizedBitmap = Bitmap.createBitmap(
                 bm, 0, 0, width, height, matrix, false);
-        bm.recycle();
+//        bm.recycle();
         return resizedBitmap;
     }
-    public void seekObjects(Bitmap bm, Bitmap bm2){
+    public String seekObjects(Bitmap bm){
         int w = bm.getWidth();
+        String chainCode = "number : ";
         int h = bm.getHeight();
         int x = 0, y = 0;
         int clr;
+        String ch = "";
         while(y < h){
             clr = bm.getPixel(x,y);
             if(clr != white){
                 Log.d(TAG, "X : "+ x +", Y : "+y);
-                getChainCode(bm, x, y, bm2);
-                break;
-
+                ch = getChainCode(bm, x, y);
+                chainCode += modelMatching(ch, models);
+                break; // temporary, soon when optimized for memory will be deleted
             }
             if(x == w-1){
                 x = 0;
@@ -84,63 +98,71 @@ public class Processor {
             }else
                 x += 1;
         }
+        return chainCode;
     }
-    public void getChainCode(Bitmap bm, int initX, int initY, Bitmap bm2){
+    public String getChainCode(Bitmap bm, int initX, int initY){
         String chainCode = "0";
         boolean start = true;
         int x = initX;
         int y = initY;
         int xMax = x, xMin = x, yMax = y, yMin = y;
         int[] temp = new int[2];
-        int loop = 0;
         int dir = 0; //starting direction
+        Log.d(TAG, " height : "+bm.getHeight());
+        Log.d(TAG, " width : "+bm.getWidth());
         while(true){
             if(x == initX && y == initY && !start) break;
             bm.setPixel(x,y,Color.BLUE);
             int[] left = leftSide(dir); //get leftsides
             int[] right = rightSide(dir); //get rightsides
             int[] up = translate(x,y,dir); //get up coordinate
-            List<Integer> dirL = checkSide(bm, x, y, left);
-            List<Integer> dirR = checkSide(bm, x, y, right);
+            int[] dirL = checkSide(bm, x, y, left);
+            int[] dirR = checkSide(bm, x, y, right);
             int upV = bm.getPixel(up[0], up[1]);
             // checking per-dir
-            if(dirL.size() > 0){
-                Log.d(TAG, "L");
-                if(dirL.size() > 1 && upV != white){
-                    dir = dirL.get(dirL.size() - 1);
-                }else dir = dirL.get(0);
+            if(dirL.length > 0){
+                if(dirL.length > 1 && upV != white){
+                    dir = dirL[dirL.length - 1];
+                }else dir = dirL[0];
                 temp = translate(x, y, dir);
             }
             else if(upV != white){
-                Log.d(TAG, "U");
                 temp = up;
             }
-            else if(dirR.size() > 0){
-                Log.d(TAG, "R");
-                if(dirR.size() > 1 && upV != white){
-                    dir = dirR.get(dirR.size() - 1);
-                }else dir = dirR.get(0);
+            else if(dirR.length > 0){
+                if(dirR.length > 1 && upV != white){
+                    dir = dirR[dirR.length - 1];
+                }else dir = dirR[0];
                 temp = translate(x, y, dir);
             }
             else {
-                System.out.println("eop");
+                Log.d(TAG,"eop");
                 break;
             }
             chainCode += ""+dir;
+            bm.setPixel(x, y, Color.GREEN);
             x = temp[0];
             y = temp[1];
+            if(x > xMax) xMax =x;
+            if(x < xMin) xMin = x;
+            if(y > yMax) yMax = y;
+            if(y < yMin) yMin = y;
             start = false;
-            Log.d(TAG, chainCode);
         }
+        Log.d(TAG, chainCode);
+        Log.d(TAG,xMax+","+ yMax+","+xMin+","+ yMin);
+//        eraseObject(bm, xMax, yMax, xMin, yMin);
+        return chainCode;
     }
-    public List<Integer> checkSide(Bitmap bm, int x, int y, int[] side){
-        List<Integer> res = new ArrayList<Integer>();
+    public int[] checkSide(Bitmap bm, int x, int y, int[] side){
+        String gets = "";
         for (int dir : side) {
             int[] temp = translate(x, y, dir);
             if(bm.getPixel(temp[0], temp[1]) != white){
-                res.add(dir);
+                gets += ""+dir;
             }
         }
+        int[] res = stringToInts(gets);
         return res;
     }
     public int[] translate(int x, int y, int pos){
@@ -181,9 +203,54 @@ public class Processor {
         }
     }
     public void eraseObject(Bitmap bm, int x, int y, int i, int j){
-        for (int b = y; b < j; b++){
-            for (int a = x; a < i; a++)
+        for (int b = j; b <= y; b++){
+            for (int a = i; a <= x; a++)
                 bm.setPixel(a, b, white);
         }
+    }
+    public String tweak(String inp, int size){
+        String blank = "";
+        for (int i = 0; i < size;i++){
+            blank += ""+0;
+        }
+        return inp+blank;
+    }
+    public int[] stringToInts(String s){
+        int[] res = new int[s.length()];
+        char[] temp = s.toCharArray();
+        for(int i = 0; i < s.length();i++)
+            res[i] = Character.getNumericValue(temp[i]);
+        return res;
+    }
+    public int modelMatching(String inp, String[] models){
+        double min = 0;
+        int res = 0;
+        int idx = 0;
+        boolean start = true;
+        for (String x : models){
+            String tempx = x;
+            String tempI = inp;
+            int gap = Math.abs(inp.length()-x.length());
+            if(inp.length()>x.length()){
+                tempx = tweak(x, gap);
+            }
+            else  tempI = tweak(inp, gap);
+            double calc = 0;
+            for (int i = 0; i < tempI.length(); i++){
+                calc += Math.pow((Character.getNumericValue(tempI.toCharArray()[i]) - Character.getNumericValue(tempx.toCharArray()[i])), 2);
+            }
+            calc = calc/inp.length();
+            if (start){
+                min = calc;
+                start = false;
+            }
+            Log.d(TAG, "MSE("+idx+") : "+calc);
+            if (calc <= min) {
+                min = calc;
+                res = idx;
+            }
+            idx += 1;
+            }
+        return res;
     }
 }
