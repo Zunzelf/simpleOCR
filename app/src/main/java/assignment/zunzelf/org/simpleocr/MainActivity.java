@@ -52,9 +52,8 @@ public class MainActivity extends AppCompatActivity {
             bitmap = null;
             try {
                 bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageURI);
-//                int percent = 60;
-//                bitmap = proc.getResizedBitmap(bitmap, Math.round((percent/100)*bitmap.getWidth()), Math.round((percent/100)*bitmap.getHeight()));
 //                i1.setImageBitmap(bitmap);
+                bitmap = Bitmap.createScaledBitmap(bitmap, 200, 200, true);
                 mBm = proc.createBlackAndWhite(bitmap);
                 String res = proc.seekObjects(mBm);
                 i1.setImageBitmap(mBm);
