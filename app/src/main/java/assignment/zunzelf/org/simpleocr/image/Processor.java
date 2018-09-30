@@ -2,7 +2,11 @@ package assignment.zunzelf.org.simpleocr.image;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.util.Log;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class Processor {
@@ -35,6 +39,8 @@ public class Processor {
 //    };
     static final int white = 0xFFFFFFFF;
     static final int black = 0xFF000000;
+    final static int[][][] nbrGroups = {{{0, 2, 4}, {2, 4, 6}}, {{0, 2, 6},
+            {0, 4, 6}}};
     int obj = 0;
     static final String TAG = "imProc";
     public static Bitmap createBlackAndWhite(Bitmap src) {
@@ -72,23 +78,6 @@ public class Processor {
         bmOut.setPixels(oupixels, 0, width, 0, 0, width, height);
         return bmOut;
     }
-    // resize image using matrix transformation
-    public Bitmap getResizedBitmap(Bitmap bm, int newWidth, int newHeight) {
-        int width = bm.getWidth();
-        int height = bm.getHeight();
-        float scaleWidth = ((float) newWidth) / width;
-        float scaleHeight = ((float) newHeight) / height;
-        // CREATE A MATRIX FOR THE MANIPULATION
-        Matrix matrix = new Matrix();
-        // RESIZE THE BIT MAP
-        matrix.postScale(scaleWidth, scaleHeight);
-
-        // "RECREATE" THE NEW BITMAP
-        Bitmap resizedBitmap = Bitmap.createBitmap(
-                bm, 0, 0, width, height, matrix, false);
-//        bm.recycle();
-        return resizedBitmap;
-    }
     public String seekObjects(Bitmap bm){
         int w = bm.getWidth();
         String chainCode = "number : ";
@@ -124,7 +113,7 @@ public class Processor {
         Log.d(TAG, " width : "+bm.getWidth());
         while(true){
             if(x == initX && y == initY && !start) break;
-            bm.setPixel(x,y,Color.BLUE);
+//            bm.setPixel(x,y,Color.BLUE);
             int[] left = leftSide(dir); //get leftsides
             int[] right = rightSide(dir); //get rightsides
             int[] up = translate(x,y,dir); //get up coordinate
@@ -152,7 +141,7 @@ public class Processor {
                 break;
             }
             chainCode += ""+dir;
-            bm.setPixel(x, y, Color.GREEN);
+//            bm.setPixel(x, y, Color.GREEN);
             x = temp[0];
             y = temp[1];
             if(x > xMax) xMax =x;
@@ -178,6 +167,7 @@ public class Processor {
         return res;
     }
     public int[] translate(int x, int y, int pos){
+        if(pos > 7) pos = 0;
         switch (pos){
             case 1 : return new int[]{x+1, y-1};
             case 0 : return new int[]{x+1, y};
@@ -266,12 +256,75 @@ public class Processor {
         return res;
     }
 
-    public int modelMatching2(String inp, String[] models){
-        double min = 0;
-        int res = 0;
-        int idx = 0;
-        boolean start = true;
+    //thinning algorithm
+    public Bitmap thinImage(Bitmap img) {
+        boolean firstStep = false;
+        boolean hasChanged;
+        List<Point> toWhite = new ArrayList<Point>();
+        Bitmap res = img;
+        do {
+            hasChanged = false;
+            firstStep = !firstStep;
 
+            for (int y = 1; y < res.getHeight() - 1; y++) {
+                for (int x = 1; x < res.getWidth() - 1; x++) {
+                    if (res.getPixel(x, y) != black)
+                        continue;
+                    int nn = numNeighbors(x, y, res);
+                    if (nn < 2 || nn > 6)
+                        continue;
+                    if (numTransitions(x, y, res) != 1)
+                        continue;
+                    if (!atLeastOneIsWhite(x, y, firstStep ? 0 : 1, res))
+                        continue;
+                    toWhite.add(new Point(x, y));
+                    hasChanged = true;
+                }
+            }
+
+            for (Point p : toWhite)
+                res.setPixel(p.x, p.y, Color.WHITE);
+            toWhite.clear();
+
+        } while (firstStep || hasChanged);
         return res;
+    }
+
+    public int numNeighbors(int x, int y, Bitmap img) {
+        int count = 0;
+        for (int i = 0; i < 7; i++) {
+            int[] nbrs = translate(x, y, i);
+            if (img.getPixel(nbrs[0], nbrs[1]) == black)
+                count++;
+        }
+        return count;
+    }
+
+    public int numTransitions(int x, int y, Bitmap img) {
+        int count = 0;
+        for (int i = 0; i < 8; i++) {
+            int[] nbrs = translate(x, y, i);
+            if (img.getPixel(nbrs[0], nbrs[1]) == white) {
+                nbrs = translate(x, y, i+1);
+                if (img.getPixel(nbrs[0], nbrs[1]) == black)
+                    count++;
+            }
+            if (count > 1) break;
+        }
+        return count;
+    }
+
+    public boolean atLeastOneIsWhite(int x, int y, int step, Bitmap img) {
+        int count = 0;
+        int[][] group = nbrGroups[step];
+        for (int i = 0; i < 2; i++)
+            for (int j = 0; j < group[i].length; j++) {
+                int[] nbr = translate(x, y, group[i][j]);
+                if (img.getPixel(nbr[0], nbr[1]) == white) {
+                    count++;
+                    break;
+                }
+            }
+        return count > 1;
     }
 }

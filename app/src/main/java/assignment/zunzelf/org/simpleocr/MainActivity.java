@@ -56,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
                 bitmap = Bitmap.createScaledBitmap(bitmap, 200, 200, true);
                 mBm = proc.createBlackAndWhite(bitmap);
                 String res = proc.seekObjects(mBm);
+                mBm = proc.thinImage(mBm);
                 i1.setImageBitmap(mBm);
                 TextView txt = (TextView) findViewById(R.id.txt1);
                 txt.setText(res);
